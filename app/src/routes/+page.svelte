@@ -62,6 +62,7 @@
 			content: '',
 			wordCount: 0,
 			kanjiCount: 0,
+			analyzed: false,
 			createdAt: new Date(),
 			updatedAt: new Date()
 		});

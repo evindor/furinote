@@ -5,6 +5,7 @@ export interface JournalEntry {
 	content: string;
 	wordCount: number;
 	kanjiCount: number;
+	analyzed: boolean;
 	createdAt: Date;
 	updatedAt: Date;
 }

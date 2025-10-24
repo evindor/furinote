@@ -1,4 +1,5 @@
 import { storageService } from './storage.service.js';
+import { analysisService } from './analysis.service.js';
 import type { JournalEntry } from '../types/index.js';
 
 class AutoSaveService {
@@ -87,7 +88,12 @@ class AutoSaveService {
 			updatedAt: new Date()
 		};
 
-		return await storageService.updateEntry(updatedEntry);
+		const savedEntry = await storageService.updateEntry(updatedEntry);
+
+		// Trigger analysis after saving
+		await analysisService.analyzeAfterSave(savedEntry);
+
+		return savedEntry;
 	}
 
 	private countWords(text: string): number {
