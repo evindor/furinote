@@ -1,0 +1,42 @@
+{
+	"name": "Kanji desu - Japanese Learning Journal",
+	"short_name": "Kanji desu",
+	"description": "Learn Japanese through daily journaling with furigana support",
+	"start_url": "/",
+	"display": "standalone",
+	"background_color": "#ffffff",
+	"theme_color": "#0f172a",
+	"orientation": "portrait-primary",
+	"categories": ["education", "productivity"],
+	"lang": "en",
+	"icons": [
+		{
+			"src": "/favicon.svg",
+			"sizes": "any",
+			"type": "image/svg+xml",
+			"purpose": "any maskable"
+		}
+	],
+	"screenshots": [
+		{
+			"src": "/screenshot-wide.png",
+			"sizes": "1280x720",
+			"type": "image/png",
+			"form_factor": "wide"
+		},
+		{
+			"src": "/screenshot-narrow.png",
+			"sizes": "640x1136",
+			"type": "image/png",
+			"form_factor": "narrow"
+		}
+	],
+	"features": [
+		"Cross Platform",
+		"fast",
+		"simple"
+	],
+	"edge_side_panel": {
+		"preferred_width": 400
+	}
+}

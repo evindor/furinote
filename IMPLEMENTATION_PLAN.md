@@ -36,25 +36,34 @@
 #### **Days 1-2: Project Foundation**
 - [X] Initialize SvelteKit project with TypeScript
 - [X] Configure Tailwind CSS
-- [ ] Set up PWA configuration (manifest.json, service worker)
-- [ ] Install and configure Kuroshiro.js + Kuromoji (installed)
-- [ ] Create basic app structure and routing
-- [ ] Set up IndexedDB wrapper utilities
+- [X] Set up PWA configuration (manifest.json, service worker)
+- [X] Install and configure Kuroshiro.js + Kuromoji (installed)
+- [X] Create basic app structure and routing
+- [X] Set up IndexedDB wrapper utilities
 
 #### **Days 3-5: Core Editor Implementation**
-- [ ] Build main text editor component
-- [ ] Implement auto-save with debouncing
-- [ ] Create entry management (create, edit, delete)
-- [ ] Add date-based entry organization
-- [ ] Basic responsive layout for mobile/desktop
+- [X] Build main text editor component
+- [X] Implement auto-save with debouncing
+- [X] Create entry management (create, edit, delete)
+- [X] Add date-based entry organization
+- [X] Basic responsive layout for mobile/desktop
+- [X] Create debug database view component
+- [X] Set up word extraction and tracking system
 
 #### **Days 6-8: Furigana Integration**
-- [ ] Integrate Kuroshiro.js for text analysis
-- [ ] Build furigana overlay component
-- [ ] Implement real-time furigana generation
-- [ ] Handle text positioning and line wrapping
-- [ ] Add furigana toggle functionality
-- [ ] Optimize performance for long texts
+- [X] Integrate Kuroshiro.js for text analysis
+- [X] Build furigana overlay component
+- [X] Implement real-time furigana generation
+- [PARTIAL] Handle text positioning and line wrapping (basic implementation done)
+- [X] Add furigana toggle functionality
+- [TODO] Optimize performance for long texts
+- [BUG] Fix furigana display - currently shows same text instead of ruby tags
+
+**NOTES FOR NEXT SESSION:**
+- The furigana service is implemented but may need debugging of the convertToRubyTags method
+- Check browser console for Kuroshiro output format to fix the conversion
+- Consider testing with different Japanese text samples
+- May need to handle different Kuroshiro output formats based on text complexity
 
 #### **Days 9-11: Word Tracking System**
 - [ ] Implement Japanese word extraction logic
