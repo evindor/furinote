@@ -9,14 +9,20 @@
 
 	// Props
 	interface Props {
-		entry: JournalEntry | null;
+		entry?: JournalEntry | null;
 		isOpen: boolean;
 		onClose: () => void;
 		onSave?: (entry: JournalEntry) => void;
 		onDelete?: (entry: JournalEntry) => void;
 	}
 
-	let { entry, isOpen, onClose, onSave = () => {}, onDelete = () => {} }: Props = $props();
+	let {
+		entry = $bindable(),
+		isOpen,
+		onClose,
+		onSave = () => {},
+		onDelete = () => {}
+	}: Props = $props();
 
 	// State
 	let textareaElement: any;

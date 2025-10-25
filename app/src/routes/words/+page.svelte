@@ -87,40 +87,47 @@
 	}
 
 	function filterWords() {
+		console.log('filterWords called with searchTerm:', searchTerm, 'words length:', words.length);
+
 		if (!searchTerm.trim()) {
 			filteredWords = words;
+			console.log('No search term, showing all words:', filteredWords.length);
 		} else {
-			const term = searchTerm.toLowerCase();
+			const term = searchTerm.toLowerCase().trim();
+			console.log('Filtering with term:', term);
+
 			filteredWords = words.filter((word) => {
-				// Search in word text
-				if (word.word.toLowerCase().includes(term)) return true;
+				// Search in word text (exact match and partial match)
+				const wordMatch = word.word.toLowerCase().includes(term);
+				if (wordMatch) {
+					console.log('Word match:', word.word, 'contains', term);
+					return true;
+				}
 
-				// Search in reading
-				if (word.reading.toLowerCase().includes(term)) return true;
+				// Search in reading (hiragana/katakana)
+				const readingMatch = word.reading.toLowerCase().includes(term);
+				if (readingMatch) {
+					console.log('Reading match:', word.reading, 'contains', term);
+					return true;
+				}
 
-				// Search in individual kanji
-				const kanjiRegex = /[\u4E00-\u9FAF]/g;
-				const kanji = word.word.match(kanjiRegex);
-				if (kanji && kanji.some((k) => k.includes(term))) return true;
-
-				// Search in definitions if available
+				// Search in Jisho data if available
 				if (word.jishoData) {
-					// Search in JLPT levels
-					if (word.jishoData.jlpt.some((level) => level.toLowerCase().includes(term))) return true;
-
-					// Search in parts of speech and definitions
-					if (
-						word.jishoData.senses.some(
-							(sense) =>
-								sense.parts_of_speech.some((pos) => pos.toLowerCase().includes(term)) ||
-								sense.english_definitions.some((def) => def.toLowerCase().includes(term))
-						)
-					)
+					// Search in parts of speech and English definitions
+					const definitionMatch = word.jishoData.senses.some((sense) =>
+						// Search in English definitions
+						sense.english_definitions.some((def) => def.toLowerCase().includes(term))
+					);
+					if (definitionMatch) {
+						console.log('Definition match for:', word.word);
 						return true;
+					}
 				}
 
 				return false;
 			});
+
+			console.log('Filtered results:', filteredWords.length, 'out of', words.length);
 		}
 	}
 
@@ -130,9 +137,7 @@
 		return matches ? [...new Set(matches)] : [];
 	}
 
-	$: {
-		filterWords();
-	}
+	$: (searchTerm, words, filterWords());
 </script>
 
 <svelte:head>
@@ -214,10 +219,15 @@
 	<div class="mx-auto mb-6 w-full max-w-md">
 		<Input
 			type="text"
-			placeholder="Search words, readings, kanji, or definitions..."
+			placeholder="Search by kanji, reading, English meaning, or JLPT level..."
 			bind:value={searchTerm}
 			class="w-full"
 		/>
+		{#if searchTerm.trim()}
+			<div class="mt-2 text-center text-xs text-muted-foreground">
+				Found {filteredWords.length} word{filteredWords.length === 1 ? '' : 's'} matching "{searchTerm}"
+			</div>
+		{/if}
 	</div>
 
 	<!-- Word Cards -->

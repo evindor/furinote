@@ -308,7 +308,7 @@
 
 	<!-- Entry Editor Modal -->
 	<EntryEditor
-		entry={currentEntry}
+		bind:entry={currentEntry}
 		isOpen={showEditor}
 		onClose={closeEditor}
 		onSave={handleEntrySave}
