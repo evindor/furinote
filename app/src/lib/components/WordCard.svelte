@@ -1,8 +1,7 @@
 <script lang="ts">
 	import type { TrackedWord, JournalEntry } from '$lib/types/index.js';
 	import { storageService } from '$lib/services/storage.service.js';
-	import { jishoService } from '$lib/services/jisho.service.js';
-	import { Button } from '$lib/components/ui/button/index.js';
+	import { jmdictService } from '$lib/services/jmdict.service.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { onMount } from 'svelte';
 
@@ -11,9 +10,14 @@
 
 	let sampleEntry: JournalEntry | null = null;
 	let isLoadingSample = false;
+	let isLoadingDefinition = false;
 
 	onMount(async () => {
 		await loadSampleEntry();
+		// Automatically fetch definition if not already present
+		if (!word.jishoData) {
+			await fetchDefinitionFromJMDict();
+		}
 	});
 
 	async function loadSampleEntry() {
@@ -31,14 +35,16 @@
 		}
 	}
 
-	async function fetchDefinition() {
-		if (fetchingDefinitions.has(word.id)) return;
+	async function fetchDefinitionFromJMDict() {
+		if (fetchingDefinitions.has(word.id) || isLoadingDefinition) return;
 
 		fetchingDefinitions.add(word.id);
+		isLoadingDefinition = true;
 		fetchingDefinitions = fetchingDefinitions; // Trigger reactivity
 
 		try {
-			const jishoData = await jishoService.fetchDefinition(word.word);
+			// Try to find definition with variants (handles different word forms)
+			const jishoData = await jmdictService.findDefinitionWithVariants(word.word);
 
 			if (jishoData) {
 				// Update the word in the database
@@ -46,14 +52,13 @@
 
 				// Update the local word object
 				word = { ...word, jishoData };
-			} else {
-				alert('No definition found for this word.');
 			}
 		} catch (error) {
-			console.error('Error fetching definition:', error);
-			alert('Error fetching definition. Please try again.');
+			console.error('Error fetching definition from JMDict:', error);
+			// Silently fail for automatic lookups - don't show alerts
 		} finally {
 			fetchingDefinitions.delete(word.id);
+			isLoadingDefinition = false;
 			fetchingDefinitions = fetchingDefinitions; // Trigger reactivity
 		}
 	}
@@ -112,19 +117,10 @@
 					{/each}
 				</div>
 			</div>
+		{:else if isLoadingDefinition || fetchingDefinitions.has(word.id)}
+			<div class="w-full py-4 text-center text-sm text-muted-foreground">Loading definition...</div>
 		{:else}
-			<Button
-				variant="outline"
-				class="w-full"
-				onclick={fetchDefinition}
-				disabled={fetchingDefinitions.has(word.id)}
-			>
-				{#if fetchingDefinitions.has(word.id)}
-					Fetching Definition...
-				{:else}
-					Fetch Definition
-				{/if}
-			</Button>
+			<div class="w-full py-4 text-center text-sm text-muted-foreground">No definition found</div>
 		{/if}
 	</div>
 

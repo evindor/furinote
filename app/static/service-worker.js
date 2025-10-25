@@ -1,5 +1,5 @@
-const CACHE_NAME = 'kanjidesu-v2';
-const STATIC_ASSETS = ['/', '/manifest.json', '/favicon.svg'];
+const CACHE_NAME = 'kanjidesu-v3';
+const STATIC_ASSETS = ['/', '/manifest.json', '/favicon.svg', '/jmdict-eng-3.6.1.json'];
 
 // Install event - cache static assets
 self.addEventListener('install', (event) => {
