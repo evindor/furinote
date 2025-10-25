@@ -60,7 +60,6 @@
 - [BUG] Fix furigana display - currently shows same text instead of ruby tags
 
 **NOTES FOR NEXT SESSION:**
-- The furigana service is implemented but may need debugging of the convertToRubyTags method
 - Check browser console for Kuroshiro output format to fix the conversion
 - Consider testing with different Japanese text samples
 - May need to handle different Kuroshiro output formats based on text complexity
@@ -71,7 +70,6 @@
 - [ ] Build word frequency tracking
 - [ ] Create word list interface
 - [ ] Add search and filter functionality
-- [ ] Implement data export/import features
 
 #### **Days 12-14: PWA Polish & Deployment**
 - [ ] Finalize PWA configuration

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kanjidesu-v1';
+const CACHE_NAME = 'kanjidesu-v2';
 const STATIC_ASSETS = ['/', '/manifest.json', '/favicon.svg'];
 
 // Install event - cache static assets

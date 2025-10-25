@@ -9,10 +9,37 @@ class StorageService {
 	private db: IDBDatabase | null = null;
 
 	async init(): Promise<void> {
+		return this.openDatabase();
+	}
+
+	private async openDatabase(retryCount = 0): Promise<void> {
 		return new Promise((resolve, reject) => {
 			const request = indexedDB.open(DB_NAME, DB_VERSION);
+			console.log(DB_VERSION);
 
-			request.onerror = () => reject(request.error);
+			request.onerror = () => {
+				const error = request.error;
+
+				// Handle version error - this happens when cached JS has lower version than DB
+				if (error?.name === 'VersionError' && retryCount === 0) {
+					console.warn(
+						'Database version conflict detected. Clearing cache and recreating database...'
+					);
+
+					// Delete the database and retry
+					const deleteRequest = indexedDB.deleteDatabase(DB_NAME);
+					deleteRequest.onsuccess = () => {
+						console.log('Old database deleted. Recreating...');
+						this.openDatabase(1).then(resolve).catch(reject);
+					};
+					deleteRequest.onerror = () => {
+						reject(new Error('Failed to delete outdated database'));
+					};
+				} else {
+					reject(error);
+				}
+			};
+
 			request.onsuccess = () => {
 				this.db = request.result;
 				resolve();
@@ -327,6 +354,28 @@ class StorageService {
 		const updatedEntry = { ...entry, analyzed: false, updatedAt: new Date() };
 		await this.updateEntry(updatedEntry);
 	}
+
+	async resetDatabase(): Promise<void> {
+		// Close existing connection
+		if (this.db) {
+			this.db.close();
+			this.db = null;
+		}
+
+		// Delete the database
+		return new Promise((resolve, reject) => {
+			const deleteRequest = indexedDB.deleteDatabase(DB_NAME);
+
+			deleteRequest.onsuccess = () => {
+				console.log('Database deleted successfully');
+				resolve();
+			};
+
+			deleteRequest.onerror = () => {
+				reject(new Error('Failed to delete database'));
+			};
+		});
+	}
 }
 
 // Create singleton instance
@@ -341,4 +390,9 @@ export async function initializeStorage(): Promise<void> {
 		const persistent = await navigator.storage.persist();
 		console.log(`Persistent storage: ${persistent}`);
 	}
+}
+
+// Reset database - useful for clearing cache issues
+export async function resetDatabase(): Promise<void> {
+	await storageService.resetDatabase();
 }
