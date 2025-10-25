@@ -3,6 +3,7 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card/index.js';
 	import { storageService } from '$lib/services/storage.service.js';
+	import { wordExtractorService } from '$lib/services/word-extractor.service.js';
 	import type { JournalEntry, TrackedWord } from '$lib/types/index.js';
 
 	// State
@@ -10,6 +11,10 @@
 	let words = $state<TrackedWord[]>([]);
 	let isLoading = $state(true);
 	let error = $state<string | null>(null);
+	let isImporting = $state(false);
+	let importResult = $state<string | null>(null);
+	let replaceData = $state(false);
+	let fileInput: HTMLInputElement | undefined = $state();
 
 	onMount(async () => {
 		await loadData();
@@ -67,6 +72,79 @@
 		}
 	}
 
+	async function importData() {
+		if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+			error = 'Please select a file to import';
+			return;
+		}
+
+		const file = fileInput.files[0];
+		if (!file.name.endsWith('.json')) {
+			error = 'Please select a JSON file';
+			return;
+		}
+
+		isImporting = true;
+		error = null;
+		importResult = null;
+
+		try {
+			const text = await file.text();
+			const data = JSON.parse(text);
+
+			// Validate the data structure
+			if (
+				!data.entries ||
+				!data.words ||
+				!Array.isArray(data.entries) ||
+				!Array.isArray(data.words)
+			) {
+				throw new Error('Invalid file format. Expected JSON with entries and words arrays.');
+			}
+
+			// Import the data
+			const result = await storageService.importData(data, replaceData);
+
+			// If we replaced data, rebuild tracked words from journal entries
+			if (replaceData) {
+				await storageService.rebuildTrackedWords();
+
+				// Re-extract words from all entries
+				const allEntries = await storageService.getAllEntries();
+				for (const entry of allEntries) {
+					if (entry.content.trim()) {
+						try {
+							await wordExtractorService.extractAndTrackWords(entry.id, entry.content);
+						} catch (err) {
+							console.error(`Error re-extracting words for entry ${entry.id}:`, err);
+						}
+					}
+				}
+			}
+
+			importResult = `Import completed! Imported ${result.entriesImported} entries and ${result.wordsImported} words.${result.conflicts > 0 ? ` ${result.conflicts} conflicts were resolved.` : ''}`;
+
+			// Reload data to show the imported content
+			await loadData();
+
+			// Clear the file input
+			if (fileInput) {
+				fileInput.value = '';
+			}
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Failed to import data';
+			console.error('Error importing data:', err);
+		} finally {
+			isImporting = false;
+		}
+	}
+
+	function triggerFileInput() {
+		if (fileInput) {
+			fileInput.click();
+		}
+	}
+
 	async function deleteEntry(entryId: string) {
 		if (!confirm('Are you sure you want to delete this entry?')) {
 			return;
@@ -115,6 +193,9 @@
 						{isLoading ? 'Loading...' : 'Refresh'}
 					</Button>
 					<Button variant="outline" size="sm" onclick={exportData}>Export Data</Button>
+					<Button variant="outline" size="sm" onclick={triggerFileInput} disabled={isImporting}>
+						{isImporting ? 'Importing...' : 'Import Data'}
+					</Button>
 					<Button variant="destructive" size="sm" onclick={clearAllData}>Clear All Data</Button>
 				</div>
 			</CardTitle>
@@ -127,6 +208,49 @@
 				</div>
 			</CardContent>
 		{/if}
+
+		{#if importResult}
+			<CardContent>
+				<div class="rounded bg-green-50 p-3 text-sm text-green-600">
+					{importResult}
+				</div>
+			</CardContent>
+		{/if}
+
+		<CardContent>
+			<div class="space-y-4">
+				<!-- Hidden file input -->
+				<input
+					bind:this={fileInput}
+					type="file"
+					accept=".json"
+					onchange={importData}
+					class="hidden"
+				/>
+
+				<!-- Import controls -->
+				<div class="flex items-center gap-4">
+					<label class="flex items-center gap-2 text-sm">
+						<input type="checkbox" bind:checked={replaceData} class="rounded border-gray-300" />
+						Replace existing data (instead of merging)
+					</label>
+				</div>
+
+				<div class="text-xs text-muted-foreground">
+					<p><strong>Import behavior:</strong></p>
+					<ul class="mt-1 list-inside list-disc space-y-1">
+						<li>
+							<strong>Merge (default):</strong> Conflicts resolved by newest updatedAt timestamp. Words
+							are merged by frequency and usage.
+						</li>
+						<li>
+							<strong>Replace:</strong> All existing data is cleared and replaced with imported data.
+							Tracked words are rebuilt from journal entries.
+						</li>
+					</ul>
+				</div>
+			</div>
+		</CardContent>
 	</Card>
 
 	<!-- Statistics -->
@@ -134,14 +258,14 @@
 		<Card>
 			<CardContent class="pt-6">
 				<div class="text-2xl font-bold">{entries.length}</div>
-				<p class="text-muted-foreground text-xs">Journal Entries</p>
+				<p class="text-xs text-muted-foreground">Journal Entries</p>
 			</CardContent>
 		</Card>
 
 		<Card>
 			<CardContent class="pt-6">
 				<div class="text-2xl font-bold">{words.length}</div>
-				<p class="text-muted-foreground text-xs">Tracked Words</p>
+				<p class="text-xs text-muted-foreground">Tracked Words</p>
 			</CardContent>
 		</Card>
 
@@ -150,7 +274,7 @@
 				<div class="text-2xl font-bold">
 					{words.reduce((sum, word) => sum + word.frequency, 0)}
 				</div>
-				<p class="text-muted-foreground text-xs">Total Word Usage</p>
+				<p class="text-xs text-muted-foreground">Total Word Usage</p>
 			</CardContent>
 		</Card>
 	</div>
@@ -162,9 +286,9 @@
 		</CardHeader>
 		<CardContent>
 			{#if isLoading}
-				<div class="text-muted-foreground py-8 text-center">Loading entries...</div>
+				<div class="py-8 text-center text-muted-foreground">Loading entries...</div>
 			{:else if entries.length === 0}
-				<div class="text-muted-foreground py-8 text-center">No entries found</div>
+				<div class="py-8 text-center text-muted-foreground">No entries found</div>
 			{:else}
 				<div class="space-y-4">
 					{#each entries as entry (entry.id)}
@@ -174,7 +298,7 @@
 									<h4 class="font-medium">
 										{entry.title || `Entry ${formatDate(entry.date)}`}
 									</h4>
-									<p class="text-muted-foreground text-sm">
+									<p class="text-sm text-muted-foreground">
 										{truncateText(entry.content)}
 									</p>
 								</div>
@@ -183,7 +307,7 @@
 								</Button>
 							</div>
 
-							<div class="text-muted-foreground flex gap-4 text-xs">
+							<div class="flex gap-4 text-xs text-muted-foreground">
 								<span>ID: {entry.id}</span>
 								<span>Words: {entry.wordCount}</span>
 								<span>Kanji: {entry.kanjiCount}</span>
@@ -204,9 +328,9 @@
 		</CardHeader>
 		<CardContent>
 			{#if isLoading}
-				<div class="text-muted-foreground py-8 text-center">Loading words...</div>
+				<div class="py-8 text-center text-muted-foreground">Loading words...</div>
 			{:else if words.length === 0}
-				<div class="text-muted-foreground py-8 text-center">No words found</div>
+				<div class="py-8 text-center text-muted-foreground">No words found</div>
 			{:else}
 				<div class="space-y-2">
 					{#each words as word (word.id)}
@@ -219,14 +343,14 @@
 									>
 										{word.word}
 									</span>
-									<span class="text-muted-foreground text-sm">
+									<span class="text-sm text-muted-foreground">
 										{word.reading}
 									</span>
 									<span class="rounded bg-blue-100 px-2 py-1 text-xs text-blue-800">
 										×{word.frequency}
 									</span>
 								</div>
-								<div class="text-muted-foreground mt-1 flex gap-4 text-xs">
+								<div class="mt-1 flex gap-4 text-xs text-muted-foreground">
 									<span>ID: {word.id}</span>
 									<span>First seen: {formatDate(word.firstSeen)}</span>
 									<span>Last used: {formatDate(word.lastUsed)}</span>

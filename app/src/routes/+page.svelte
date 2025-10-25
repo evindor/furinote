@@ -29,8 +29,10 @@
 			// Wait for database initialization
 			await ensureInitialized();
 
-			// Load existing entries
-			entries = await storageService.getAllEntries();
+			// Load existing entries and sort by creation date (newest first)
+			entries = (await storageService.getAllEntries()).sort(
+				(a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+			);
 
 			// Create or load today's entry
 			await loadTodaysEntry();
@@ -58,7 +60,10 @@
 			updatedAt: new Date()
 		});
 
-		entries = [newEntry, ...entries];
+		// Add new entry and maintain sort order by creation date
+		entries = [newEntry, ...entries].sort(
+			(a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+		);
 		return newEntry;
 	}
 
@@ -69,9 +74,14 @@
 			// Update existing entry
 			entries[index] = savedEntry;
 		} else {
-			// Add new entry to the beginning of the list
+			// Add new entry
 			entries = [savedEntry, ...entries];
 		}
+
+		// Maintain sort order by creation date (newest first)
+		entries = entries.sort(
+			(a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+		);
 
 		// Extract and track words from the entry
 		if (savedEntry.content.trim()) {
@@ -274,7 +284,7 @@
 										<span>{entry.kanjiCount} kanji</span>
 									</div>
 									<div class="text-sm text-muted-foreground">
-										{formatDateTime(entry.updatedAt || entry.date)}
+										{formatDateTime(entry.createdAt || entry.date)}
 									</div>
 								</div>
 							</button>

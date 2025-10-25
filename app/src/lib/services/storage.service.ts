@@ -318,6 +318,168 @@ class StorageService {
 		return { entries, words };
 	}
 
+	async importData(
+		data: { entries: JournalEntry[]; words: TrackedWord[] },
+		replace: boolean = false
+	): Promise<{ entriesImported: number; wordsImported: number; conflicts: number }> {
+		if (!this.db) throw new Error('Database not initialized');
+
+		let entriesImported = 0;
+		let wordsImported = 0;
+		let conflicts = 0;
+
+		if (replace) {
+			// Clear all existing data first
+			await this.clearAllData();
+		}
+
+		// Import entries
+		for (const entry of data.entries) {
+			try {
+				if (replace) {
+					// Direct import without conflict resolution
+					await new Promise<void>((resolve, reject) => {
+						const transaction = this.db!.transaction([ENTRIES_STORE], 'readwrite');
+						const store = transaction.objectStore(ENTRIES_STORE);
+						const request = store.put(entry);
+
+						request.onerror = () => reject(request.error);
+						request.onsuccess = () => {
+							entriesImported++;
+							resolve();
+						};
+					});
+				} else {
+					// Check for existing entry and resolve conflicts
+					const existingEntry = await this.getEntry(entry.id);
+
+					if (existingEntry) {
+						// Conflict resolution: newer updatedAt wins
+						const existingDate = new Date(existingEntry.updatedAt);
+						const importDate = new Date(entry.updatedAt);
+
+						if (importDate > existingDate) {
+							await this.updateEntry(entry);
+							entriesImported++;
+						} else {
+							conflicts++;
+						}
+					} else {
+						// No conflict, create new entry
+						await new Promise<void>((resolve, reject) => {
+							const transaction = this.db!.transaction([ENTRIES_STORE], 'readwrite');
+							const store = transaction.objectStore(ENTRIES_STORE);
+							const request = store.put(entry);
+
+							request.onerror = () => reject(request.error);
+							request.onsuccess = () => {
+								entriesImported++;
+								resolve();
+							};
+						});
+					}
+				}
+			} catch (error) {
+				console.error(`Error importing entry ${entry.id}:`, error);
+			}
+		}
+
+		// Import words
+		for (const word of data.words) {
+			try {
+				if (replace) {
+					// Direct import without conflict resolution
+					await new Promise<void>((resolve, reject) => {
+						const transaction = this.db!.transaction([WORDS_STORE], 'readwrite');
+						const store = transaction.objectStore(WORDS_STORE);
+						const request = store.put(word);
+
+						request.onerror = () => reject(request.error);
+						request.onsuccess = () => {
+							wordsImported++;
+							resolve();
+						};
+					});
+				} else {
+					// Check for existing word and resolve conflicts
+					const existingWord = await this.getWordByText(word.word);
+
+					if (existingWord) {
+						// Conflict resolution: merge data, keeping higher frequency and more recent lastUsed
+						const mergedWord: TrackedWord = {
+							...existingWord,
+							frequency: Math.max(existingWord.frequency, word.frequency),
+							lastUsed: new Date(
+								Math.max(
+									new Date(existingWord.lastUsed).getTime(),
+									new Date(word.lastUsed).getTime()
+								)
+							),
+							firstSeen: new Date(
+								Math.min(
+									new Date(existingWord.firstSeen).getTime(),
+									new Date(word.firstSeen).getTime()
+								)
+							),
+							entryIds: [...new Set([...existingWord.entryIds, ...word.entryIds])],
+							// Keep jishoData if it exists in either version
+							jishoData: existingWord.jishoData || word.jishoData
+						};
+
+						await new Promise<void>((resolve, reject) => {
+							const transaction = this.db!.transaction([WORDS_STORE], 'readwrite');
+							const store = transaction.objectStore(WORDS_STORE);
+							const request = store.put(mergedWord);
+
+							request.onerror = () => reject(request.error);
+							request.onsuccess = () => {
+								wordsImported++;
+								resolve();
+							};
+						});
+					} else {
+						// No conflict, create new word
+						await new Promise<void>((resolve, reject) => {
+							const transaction = this.db!.transaction([WORDS_STORE], 'readwrite');
+							const store = transaction.objectStore(WORDS_STORE);
+							const request = store.put(word);
+
+							request.onerror = () => reject(request.error);
+							request.onsuccess = () => {
+								wordsImported++;
+								resolve();
+							};
+						});
+					}
+				}
+			} catch (error) {
+				console.error(`Error importing word ${word.word}:`, error);
+			}
+		}
+
+		return { entriesImported, wordsImported, conflicts };
+	}
+
+	async rebuildTrackedWords(): Promise<void> {
+		if (!this.db) throw new Error('Database not initialized');
+
+		// Clear all existing words
+		await new Promise<void>((resolve, reject) => {
+			const transaction = this.db!.transaction([WORDS_STORE], 'readwrite');
+			const store = transaction.objectStore(WORDS_STORE);
+			const request = store.clear();
+
+			request.onerror = () => reject(request.error);
+			request.onsuccess = () => resolve();
+		});
+
+		// Get all entries and mark them as unanalyzed so they get reprocessed
+		const entries = await this.getAllEntries();
+		for (const entry of entries) {
+			await this.markEntryAsUnanalyzed(entry.id);
+		}
+	}
+
 	// Analysis-related methods
 	async getUnanalyzedEntries(): Promise<JournalEntry[]> {
 		if (!this.db) throw new Error('Database not initialized');
