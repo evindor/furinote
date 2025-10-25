@@ -1,14 +1,66 @@
 import { furiganaService } from './furigana.service.js';
 import { storageService } from './storage.service.js';
-import type { TrackedWord } from '../types/index.js';
+import { mecabService } from './mecab.service.js';
+import type { TrackedWord, MecabToken } from '../types/index.js';
 
 class WordExtractorService {
 	/**
-	 * Extract and track Japanese words from a journal entry
+	 * Extract and track Japanese words from a journal entry using MeCab
 	 */
 	async extractAndTrackWords(entryId: string, content: string): Promise<TrackedWord[]> {
 		if (!content.trim()) return [];
 
+		try {
+			// Analyze text with MeCab
+			const tokens = await mecabService.analyze(content);
+
+			// Extract content words (nouns, verbs, adjectives, etc.)
+			const contentWords = mecabService.extractContentWords(tokens);
+
+			if (contentWords.length === 0) return [];
+
+			// Process each word and get readings
+			const trackedWords: TrackedWord[] = [];
+
+			for (const token of contentWords) {
+				try {
+					// Convert katakana reading to hiragana
+					const reading = token.reading
+						? mecabService.katakanaToHiragana(token.reading)
+						: await furiganaService.convertToHiragana(token.word);
+
+					// Create or update tracked word
+					const trackedWord = await storageService.createOrUpdateWord({
+						word: token.word,
+						reading,
+						frequency: 1,
+						firstSeen: new Date(),
+						lastUsed: new Date(),
+						entryIds: [entryId]
+					});
+
+					trackedWords.push(trackedWord);
+				} catch (error) {
+					console.error(`Error processing word "${token.word}":`, error);
+					// Continue with next word even if one fails
+				}
+			}
+
+			return trackedWords;
+		} catch (error) {
+			console.error('Error extracting words with MeCab:', error);
+			// Fallback to old method
+			return this.extractAndTrackWordsLegacy(entryId, content);
+		}
+	}
+
+	/**
+	 * Legacy word extraction method as fallback
+	 */
+	private async extractAndTrackWordsLegacy(
+		entryId: string,
+		content: string
+	): Promise<TrackedWord[]> {
 		try {
 			// Extract Japanese words using simple regex
 			const japaneseWords = this.extractJapaneseWords(content);
@@ -42,7 +94,7 @@ class WordExtractorService {
 
 			return trackedWords;
 		} catch (error) {
-			console.error('Error extracting words:', error);
+			console.error('Error in legacy word extraction:', error);
 			return [];
 		}
 	}
@@ -128,16 +180,20 @@ class WordExtractorService {
 	}
 
 	/**
-	 * Get word statistics for an entry
+	 * Get word statistics for an entry using MeCab
 	 */
-	getWordStatistics(content: string): {
+	async getWordStatistics(content: string): Promise<{
 		totalCharacters: number;
 		japaneseCharacters: number;
 		kanjiCount: number;
 		hiraganaCount: number;
 		katakanaCount: number;
 		estimatedWords: number;
-	} {
+		contentWords: number;
+		verbCount: number;
+		nounCount: number;
+		adjectiveCount: number;
+	}> {
 		const totalCharacters = content.length;
 		let kanjiCount = 0;
 		let hiraganaCount = 0;
@@ -154,17 +210,42 @@ class WordExtractorService {
 		}
 
 		const japaneseCharacters = kanjiCount + hiraganaCount + katakanaCount;
-		const japaneseWords = this.extractJapaneseWords(content);
-		const estimatedWords = japaneseWords.length;
 
-		return {
-			totalCharacters,
-			japaneseCharacters,
-			kanjiCount,
-			hiraganaCount,
-			katakanaCount,
-			estimatedWords
-		};
+		try {
+			// Use MeCab for more accurate word statistics
+			const tokens = await mecabService.analyze(content);
+			const mecabStats = mecabService.getWordStatistics(tokens);
+
+			return {
+				totalCharacters,
+				japaneseCharacters,
+				kanjiCount,
+				hiraganaCount,
+				katakanaCount,
+				estimatedWords: mecabStats.totalTokens,
+				contentWords: mecabStats.contentWords,
+				verbCount: mecabStats.verbCount,
+				nounCount: mecabStats.nounCount,
+				adjectiveCount: mecabStats.adjectiveCount
+			};
+		} catch (error) {
+			console.error('Error getting MeCab statistics, falling back to simple count:', error);
+			// Fallback to simple word extraction
+			const japaneseWords = this.extractJapaneseWords(content);
+
+			return {
+				totalCharacters,
+				japaneseCharacters,
+				kanjiCount,
+				hiraganaCount,
+				katakanaCount,
+				estimatedWords: japaneseWords.length,
+				contentWords: japaneseWords.length,
+				verbCount: 0,
+				nounCount: 0,
+				adjectiveCount: 0
+			};
+		}
 	}
 
 	/**

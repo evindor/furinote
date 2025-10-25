@@ -4,6 +4,7 @@
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card/index.js';
 	import TextEditor from '$lib/components/TextEditor.svelte';
 	import DatabaseDebugView from '$lib/components/DatabaseDebugView.svelte';
+	import MecabTest from '$lib/components/MecabTest.svelte';
 	import { storageService, initializeStorage } from '$lib/services/storage.service.js';
 	import { wordExtractorService } from '$lib/services/word-extractor.service.js';
 	import type { JournalEntry } from '$lib/types/index.js';
@@ -12,6 +13,7 @@
 	let currentEntry = $state<JournalEntry | null>(null);
 	let entries = $state<JournalEntry[]>([]);
 	let showDebugView = $state(false);
+	let showMecabTest = $state(false);
 	let isLoading = $state(true);
 	let error = $state<string | null>(null);
 
@@ -108,6 +110,12 @@
 
 	function toggleDebugView() {
 		showDebugView = !showDebugView;
+		showMecabTest = false; // Hide MeCab test when showing debug
+	}
+
+	function toggleMecabTest() {
+		showMecabTest = !showMecabTest;
+		showDebugView = false; // Hide debug when showing MeCab test
 	}
 </script>
 
@@ -133,6 +141,9 @@
 
 				<div class="flex gap-2">
 					<Button variant="outline" size="sm" onclick={createNewEntryForToday}>New Entry</Button>
+					<Button variant="outline" size="sm" onclick={toggleMecabTest}>
+						{showMecabTest ? 'Hide' : 'Test'} MeCab
+					</Button>
 					<Button variant="outline" size="sm" onclick={toggleDebugView}>
 						{showDebugView ? 'Hide' : 'Show'} Debug
 					</Button>
@@ -163,6 +174,8 @@
 			</Card>
 		{:else if showDebugView}
 			<DatabaseDebugView />
+		{:else if showMecabTest}
+			<MecabTest />
 		{:else}
 			<div class="grid grid-cols-1 gap-6 lg:grid-cols-4">
 				<!-- Sidebar - Entry List -->
@@ -226,7 +239,7 @@
 		<div class="container mx-auto px-4 py-6">
 			<div class="text-muted-foreground text-center text-sm">
 				<p>Learn Japanese through daily journaling with real-time furigana support</p>
-				<p class="mt-1">Built with SvelteKit • Powered by Kuroshiro</p>
+				<p class="mt-1">Built with SvelteKit • Powered by MeCab & Kuroshiro</p>
 			</div>
 		</div>
 	</footer>

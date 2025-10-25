@@ -31,14 +31,9 @@
 	});
 
 	onMount(async () => {
-		// Initialize furigana service
-		try {
-			await furiganaService.init();
-			if (showFurigana && entry.content) {
-				await generateFurigana();
-			}
-		} catch (error) {
-			console.error('Failed to initialize furigana service:', error);
+		// Generate furigana if enabled and content exists
+		if (showFurigana && entry.content) {
+			await generateFurigana();
 		}
 	});
 

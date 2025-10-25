@@ -1,51 +1,40 @@
-import type { FuriganaToken } from '../types/index.js';
+import type { FuriganaToken, MecabToken } from '../types/index.js';
+import { mecabService } from './mecab.service.js';
 
 class FuriganaService {
 	private kuroshiro: Kuroshiro | null = null;
-	private isInitialized = false;
-	private initPromise: Promise<void> | null = null;
+	private isKuroshiroInitialized = false;
+	private kuroshiroInitPromise: Promise<void> | null = null;
 
-	async init(): Promise<void> {
-		if (this.isInitialized) return;
-		if (this.initPromise) return this.initPromise;
+	/**
+	 * Initialize Kuroshiro as fallback for katakana to hiragana conversion
+	 */
+	async initKuroshiro(): Promise<void> {
+		if (this.isKuroshiroInitialized) return;
+		if (this.kuroshiroInitPromise) return this.kuroshiroInitPromise;
 
-		this.initPromise = this._initialize();
-		return this.initPromise;
+		this.kuroshiroInitPromise = this._initializeKuroshiro();
+		return this.kuroshiroInitPromise;
 	}
 
-	private async _initialize(): Promise<void> {
+	private async _initializeKuroshiro(): Promise<void> {
 		try {
 			// Check if we're in browser environment
 			if (typeof window === 'undefined') {
 				throw new Error('Window object not available (server-side rendering)');
 			}
 
-			// Wait for scripts to load and check what's available on window
-			await this.waitForScripts();
-
-			// Debug: log all available properties on window
-			console.log(
-				'Available window properties:',
-				Object.keys(window).filter((key) => key.toLowerCase().includes('kuro'))
-			);
-			console.log('window.Kuroshiro:', (window as any).Kuroshiro);
-			console.log('window.KuromojiAnalyzer:', (window as any).KuromojiAnalyzer);
+			// Wait for scripts to load
+			await this.waitForKuroshiroScripts();
 
 			// Access global objects directly
 			const KuroshiroModule = (window as any).Kuroshiro;
 			const Kuroshiro = KuroshiroModule.default || KuroshiroModule;
 			const KuromojiAnalyzer = (window as any).KuromojiAnalyzer;
 
-			if (!Kuroshiro) {
-				throw new Error(
-					'Kuroshiro not found on window object. Check if kuroshiro.min.js is loaded.'
-				);
-			}
-
-			if (!KuromojiAnalyzer) {
-				throw new Error(
-					'KuromojiAnalyzer not found on window object. Check if kuroshiro-analyzer-kuromoji.min.js is loaded.'
-				);
+			if (!Kuroshiro || !KuromojiAnalyzer) {
+				console.warn('Kuroshiro not available, using simple katakana to hiragana conversion');
+				return;
 			}
 
 			console.log('Creating Kuroshiro instance...');
@@ -59,15 +48,15 @@ class FuriganaService {
 			console.log('Initializing Kuroshiro with analyzer...');
 			await this.kuroshiro!.init(analyzer);
 
-			this.isInitialized = true;
+			this.isKuroshiroInitialized = true;
 			console.log('Kuroshiro initialized successfully');
 		} catch (error) {
 			console.error('Failed to initialize Kuroshiro:', error);
-			throw error;
+			// Don't throw - we can fall back to simple conversion
 		}
 	}
 
-	private async waitForScripts(): Promise<void> {
+	private async waitForKuroshiroScripts(): Promise<void> {
 		return new Promise((resolve) => {
 			// If scripts are already loaded, resolve immediately
 			if ((window as any).Kuroshiro && (window as any).KuromojiAnalyzer) {
@@ -91,51 +80,67 @@ class FuriganaService {
 		});
 	}
 
+	/**
+	 * Convert katakana to hiragana using Kuroshiro or simple mapping
+	 */
 	async convertToHiragana(text: string): Promise<string> {
-		await this.init();
-		if (!this.kuroshiro) throw new Error('Kuroshiro not initialized');
-
-		try {
-			return await this.kuroshiro.convert(text, { to: 'hiragana' });
-		} catch (error) {
-			console.error('Error converting to hiragana:', error);
-			return text; // Return original text on error
+		// Try using MeCab's simple conversion first
+		const simpleConverted = mecabService.katakanaToHiragana(text);
+		if (simpleConverted !== text) {
+			return simpleConverted;
 		}
+
+		// Fall back to Kuroshiro if available
+		try {
+			await this.initKuroshiro();
+			if (this.kuroshiro) {
+				return await this.kuroshiro.convert(text, { to: 'hiragana' });
+			}
+		} catch (error) {
+			console.error('Error converting to hiragana with Kuroshiro:', error);
+		}
+
+		return text; // Return original text if conversion fails
 	}
 
+	/**
+	 * Convert text to furigana using MeCab
+	 */
 	async convertToFurigana(text: string): Promise<string> {
-		await this.init();
-		if (!this.kuroshiro) throw new Error('Kuroshiro not initialized');
-
 		try {
-			return await this.kuroshiro.convert(text, {
-				to: 'hiragana',
-				mode: 'furigana'
-			});
+			const tokens = await mecabService.analyze(text);
+			return mecabService.generateFuriganaHTML(tokens);
 		} catch (error) {
-			console.error('Error converting to furigana:', error);
+			console.error('Error converting to furigana with MeCab:', error);
 			return text; // Return original text on error
 		}
 	}
 
 	async convertToRomaji(text: string): Promise<string> {
-		await this.init();
-		if (!this.kuroshiro) throw new Error('Kuroshiro not initialized');
-
 		try {
-			return await this.kuroshiro.convert(text, { to: 'romaji' });
+			await this.initKuroshiro();
+			if (this.kuroshiro) {
+				return await this.kuroshiro.convert(text, { to: 'romaji' });
+			}
 		} catch (error) {
 			console.error('Error converting to romaji:', error);
-			return text; // Return original text on error
 		}
+		return text; // Return original text on error
 	}
 
-	// Extract Japanese words from text for tracking
-	extractJapaneseWords(text: string): string[] {
-		// Simple regex to match Japanese characters (hiragana, katakana, kanji)
-		const japaneseRegex = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+/g;
-		const matches = text.match(japaneseRegex);
-		return matches ? [...new Set(matches)] : [];
+	// Extract Japanese words from text for tracking using MeCab
+	async extractJapaneseWords(text: string): Promise<string[]> {
+		try {
+			const tokens = await mecabService.analyze(text);
+			const contentWords = mecabService.extractContentWords(tokens);
+			return [...new Set(contentWords.map((token) => token.word))];
+		} catch (error) {
+			console.error('Error extracting Japanese words with MeCab:', error);
+			// Fallback to simple regex
+			const japaneseRegex = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+/g;
+			const matches = text.match(japaneseRegex);
+			return matches ? [...new Set(matches)] : [];
+		}
 	}
 
 	// Check if text contains Japanese characters
@@ -151,24 +156,13 @@ class FuriganaService {
 		return matches ? matches.length : 0;
 	}
 
-	// Generate furigana HTML with ruby tags
+	// Generate furigana HTML with ruby tags using MeCab
 	async generateFuriganaHTML(text: string): Promise<string> {
-		await this.init();
-		if (!this.kuroshiro) throw new Error('Kuroshiro not initialized');
-
 		try {
-			// Convert to furigana format first
-			const furiganaResult = await this.kuroshiro.convert(text, {
-				to: 'hiragana',
-				mode: 'furigana'
-			});
-
-			console.log('Kuroshiro furigana result:', furiganaResult);
-
-			// Convert the result to proper HTML ruby tags
-			return this.convertToRubyTags(furiganaResult);
+			const tokens = await mecabService.analyze(text);
+			return mecabService.generateFuriganaHTML(tokens);
 		} catch (error) {
-			console.error('Error generating furigana HTML:', error);
+			console.error('Error generating furigana HTML with MeCab:', error);
 			return text; // Return original text on error
 		}
 	}
