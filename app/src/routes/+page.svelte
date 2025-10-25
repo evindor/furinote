@@ -68,21 +68,6 @@
 	}
 
 	async function handleEntrySave(savedEntry: JournalEntry) {
-		// Update the entry in our local state
-		const index = entries.findIndex((entry) => entry.id === savedEntry.id);
-		if (index !== -1) {
-			// Update existing entry
-			entries[index] = savedEntry;
-		} else {
-			// Add new entry
-			entries = [savedEntry, ...entries];
-		}
-
-		// Maintain sort order by creation date (newest first)
-		entries = entries.sort(
-			(a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-		);
-
 		// Extract and track words from the entry
 		if (savedEntry.content.trim()) {
 			try {
@@ -91,6 +76,28 @@
 				console.error('Error tracking words:', err);
 			}
 		}
+
+		// After analysis is complete, fetch the updated entry with furigana
+		const updatedEntry = await storageService.getEntry(savedEntry.id);
+		if (!updatedEntry) {
+			console.error('Failed to fetch updated entry after save');
+			return;
+		}
+
+		// Update the entry in our local state with the complete data including furigana
+		const index = entries.findIndex((entry) => entry.id === updatedEntry.id);
+		if (index !== -1) {
+			// Update existing entry
+			entries[index] = updatedEntry;
+		} else {
+			// Add new entry
+			entries = [updatedEntry, ...entries];
+		}
+
+		// Maintain sort order by creation date (newest first)
+		entries = entries.sort(
+			(a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+		);
 	}
 
 	async function handleEntryDelete(entryToDelete: JournalEntry) {
@@ -338,6 +345,10 @@
 		text-align: center;
 		color: #666;
 		font-weight: normal;
+		user-select: none;
+		-webkit-user-select: none;
+		-moz-user-select: none;
+		-ms-user-select: none;
 	}
 
 	/* Custom scrollbar */

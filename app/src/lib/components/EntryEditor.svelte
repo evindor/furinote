@@ -381,6 +381,10 @@
 			font-size: 0.6em;
 			color: #666;
 			font-weight: normal;
+			user-select: none;
+			-webkit-user-select: none;
+			-moz-user-select: none;
+			-ms-user-select: none;
 		}
 	}
 
@@ -395,6 +399,10 @@
 		font-weight: normal;
 		line-height: 1;
 		text-align: center;
+		user-select: none;
+		-webkit-user-select: none;
+		-moz-user-select: none;
+		-ms-user-select: none;
 	}
 
 	/* Custom scrollbar for preview area */
