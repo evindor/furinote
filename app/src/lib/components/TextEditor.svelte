@@ -39,7 +39,7 @@
 
 	onDestroy(() => {
 		// Cancel any pending auto-saves when component is destroyed
-		autoSaveService.cancelAutoSave(entry.id);
+		autoSaveService.cancelAutoSave(entry);
 	});
 
 	async function handleContentChange() {
@@ -133,9 +133,9 @@
 			/>
 
 			<!-- Auto-save indicator -->
-			{#if autoSaveService.hasPendingSave(entry.id)}
+			{#if autoSaveService.hasPendingSave(entry)}
 				<div
-					class="text-muted-foreground bg-background absolute right-2 top-2 rounded px-2 py-1 text-xs"
+					class="absolute top-2 right-2 rounded bg-background px-2 py-1 text-xs text-muted-foreground"
 				>
 					Auto-saving...
 				</div>
@@ -144,11 +144,11 @@
 
 		<!-- Furigana Display -->
 		{#if showFurigana && entry.content.trim()}
-			<div class="bg-muted/50 rounded-lg border p-4">
+			<div class="rounded-lg border bg-muted/50 p-4">
 				<div class="mb-2 flex items-center justify-between">
-					<h3 class="text-muted-foreground text-sm font-medium">Furigana Preview</h3>
+					<h3 class="text-sm font-medium text-muted-foreground">Furigana Preview</h3>
 					{#if isGeneratingFurigana}
-						<div class="text-muted-foreground text-xs">Generating...</div>
+						<div class="text-xs text-muted-foreground">Generating...</div>
 					{/if}
 				</div>
 
@@ -162,7 +162,7 @@
 		{/if}
 
 		<!-- Statistics -->
-		<div class="text-muted-foreground flex gap-4 text-sm">
+		<div class="flex gap-4 text-sm text-muted-foreground">
 			<span>Words: {getWordCount()}</span>
 			<span>Kanji: {getKanjiCount()}</span>
 			<span>Characters: {entry.content.length}</span>

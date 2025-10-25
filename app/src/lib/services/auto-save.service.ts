@@ -10,8 +10,11 @@ class AutoSaveService {
 	 * Schedule an auto-save for a journal entry with debouncing
 	 */
 	scheduleAutoSave(entry: JournalEntry, delay: number = this.defaultDelay): void {
+		// Use a key that works for both new and existing entries
+		const entryKey = entry.id || `temp-${entry.date.getTime()}`;
+
 		// Clear existing timeout for this entry
-		const existingTimeout = this.saveTimeouts.get(entry.id);
+		const existingTimeout = this.saveTimeouts.get(entryKey);
 		if (existingTimeout) {
 			clearTimeout(existingTimeout);
 		}
@@ -19,38 +22,57 @@ class AutoSaveService {
 		// Schedule new save
 		const timeout = setTimeout(async () => {
 			try {
-				await this.saveEntry(entry);
-				this.saveTimeouts.delete(entry.id);
+				const savedEntry = await this.saveEntry(entry);
+				// Update the entry object with the new ID if it was created
+				if (!entry.id && savedEntry.id) {
+					entry.id = savedEntry.id;
+				}
+				this.saveTimeouts.delete(entryKey);
 			} catch (error) {
 				console.error('Auto-save failed:', error);
 			}
 		}, delay);
 
-		this.saveTimeouts.set(entry.id, timeout);
+		this.saveTimeouts.set(entryKey, timeout);
 	}
 
 	/**
 	 * Force immediate save of an entry (cancels any pending auto-save)
 	 */
 	async forceSave(entry: JournalEntry): Promise<JournalEntry> {
-		// Cancel pending auto-save
-		const existingTimeout = this.saveTimeouts.get(entry.id);
+		// Cancel pending auto-save using the same key logic
+		const entryKey = entry.id || `temp-${entry.date.getTime()}`;
+		const existingTimeout = this.saveTimeouts.get(entryKey);
 		if (existingTimeout) {
 			clearTimeout(existingTimeout);
-			this.saveTimeouts.delete(entry.id);
+			this.saveTimeouts.delete(entryKey);
 		}
 
-		return await this.saveEntry(entry);
+		const savedEntry = await this.saveEntry(entry);
+
+		// Update the entry object with the new ID if it was created
+		if (!entry.id && savedEntry.id) {
+			entry.id = savedEntry.id;
+		}
+
+		return savedEntry;
 	}
 
 	/**
 	 * Cancel auto-save for a specific entry
 	 */
-	cancelAutoSave(entryId: string): void {
-		const existingTimeout = this.saveTimeouts.get(entryId);
+	cancelAutoSave(entryIdOrEntry: string | JournalEntry): void {
+		let entryKey: string;
+		if (typeof entryIdOrEntry === 'string') {
+			entryKey = entryIdOrEntry;
+		} else {
+			entryKey = entryIdOrEntry.id || `temp-${entryIdOrEntry.date.getTime()}`;
+		}
+
+		const existingTimeout = this.saveTimeouts.get(entryKey);
 		if (existingTimeout) {
 			clearTimeout(existingTimeout);
-			this.saveTimeouts.delete(entryId);
+			this.saveTimeouts.delete(entryKey);
 		}
 	}
 
@@ -74,8 +96,14 @@ class AutoSaveService {
 	/**
 	 * Check if an entry has a pending auto-save
 	 */
-	hasPendingSave(entryId: string): boolean {
-		return this.saveTimeouts.has(entryId);
+	hasPendingSave(entryIdOrEntry: string | JournalEntry): boolean {
+		let entryKey: string;
+		if (typeof entryIdOrEntry === 'string') {
+			entryKey = entryIdOrEntry;
+		} else {
+			entryKey = entryIdOrEntry.id || `temp-${entryIdOrEntry.date.getTime()}`;
+		}
+		return this.saveTimeouts.has(entryKey);
 	}
 
 	private async saveEntry(entry: JournalEntry): Promise<JournalEntry> {
@@ -87,7 +115,23 @@ class AutoSaveService {
 			updatedAt: new Date()
 		};
 
-		const savedEntry = await storageService.updateEntry(updatedEntry);
+		let savedEntry: JournalEntry;
+
+		if (entry.id) {
+			// Existing entry - update it
+			savedEntry = await storageService.updateEntry(updatedEntry);
+		} else {
+			// New entry - create it
+			savedEntry = await storageService.createEntry({
+				date: updatedEntry.date,
+				content: updatedEntry.content,
+				wordCount: updatedEntry.wordCount,
+				kanjiCount: updatedEntry.kanjiCount,
+				analyzed: false,
+				createdAt: updatedEntry.createdAt || new Date(),
+				updatedAt: updatedEntry.updatedAt
+			});
+		}
 
 		// Trigger analysis after saving
 		await analysisService.analyzeAfterSave(savedEntry);

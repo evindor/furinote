@@ -75,7 +75,7 @@
 	onDestroy(() => {
 		// Cancel any pending auto-saves when component is destroyed
 		if (entry) {
-			autoSaveService.cancelAutoSave(entry.id);
+			autoSaveService.cancelAutoSave(entry);
 		}
 
 		// Clean up visual viewport event listeners
@@ -151,23 +151,8 @@
 		if (!entry) return;
 
 		try {
-			let savedEntry;
-			if (entry.id) {
-				// Existing entry - update it
-				savedEntry = await autoSaveService.forceSave(entry);
-			} else {
-				// New entry - create it
-				const { storageService } = await import('$lib/services/storage.service.js');
-				savedEntry = await storageService.createEntry({
-					date: entry.date,
-					content: entry.content,
-					wordCount: getWordCount(),
-					kanjiCount: getKanjiCount(),
-					analyzed: false,
-					createdAt: new Date(),
-					updatedAt: new Date()
-				});
-			}
+			// Always use forceSave which handles both new and existing entries properly
+			const savedEntry = await autoSaveService.forceSave(entry);
 			onSave(savedEntry);
 			onClose();
 		} catch (error) {
@@ -184,10 +169,8 @@
 
 		if (confirmed) {
 			try {
-				// Cancel any pending auto-saves if entry has an ID
-				if (entry.id) {
-					autoSaveService.cancelAutoSave(entry.id);
-				}
+				// Cancel any pending auto-saves
+				autoSaveService.cancelAutoSave(entry);
 
 				// Call the delete callback
 				onDelete(entry);
@@ -332,7 +315,7 @@
 						<span>{getWordCount()} words</span>
 						<span>{getKanjiCount()} kanji</span>
 						<span>{entry.content.length} characters</span>
-						{#if autoSaveService.hasPendingSave(entry.id)}
+						{#if autoSaveService.hasPendingSave(entry)}
 							<span class="text-blue-600">Auto-saving...</span>
 						{/if}
 					</div>
