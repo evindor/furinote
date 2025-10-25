@@ -30,54 +30,7 @@
 	<link rel="icon" href={favicon} />
 </svelte:head>
 
-<div class="bg-background min-h-screen">
-	<!-- Navigation -->
-	<nav class="bg-background/95 supports-[backdrop-filter]:bg-background/60 border-b backdrop-blur">
-		<div class="container mx-auto px-4">
-			<div class="flex h-14 items-center justify-between">
-				<div class="flex items-center space-x-4">
-					<a href="/" class="text-xl font-bold">Kanji desu</a>
-					<div class="hidden space-x-4 md:flex">
-						<a
-							href="/"
-							class="hover:text-primary text-sm font-medium transition-colors {$page.url
-								.pathname === '/'
-								? 'text-foreground'
-								: 'text-muted-foreground'}"
-						>
-							Journal
-						</a>
-						<a
-							href="/words"
-							class="hover:text-primary text-sm font-medium transition-colors {$page.url
-								.pathname === '/words'
-								? 'text-foreground'
-								: 'text-muted-foreground'}"
-						>
-							Words
-						</a>
-					</div>
-				</div>
-				<div class="md:hidden">
-					<div class="flex space-x-2">
-						<Button variant={$page.url.pathname === '/' ? 'default' : 'ghost'} size="sm" href="/">
-							Journal
-						</Button>
-						<Button
-							variant={$page.url.pathname === '/words' ? 'default' : 'ghost'}
-							size="sm"
-							href="/words"
-						>
-							Words
-						</Button>
-					</div>
-				</div>
-			</div>
-		</div>
-	</nav>
-
+<div class="min-h-screen bg-background">
 	<!-- Main content -->
-	<main>
-		{@render children?.()}
-	</main>
+	{@render children?.()}
 </div>

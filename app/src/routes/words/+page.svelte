@@ -307,10 +307,10 @@
 											{word.frequency}
 										</Badge>
 									</TableCell>
-									<TableCell class="text-muted-foreground text-sm">
+									<TableCell class="text-sm text-muted-foreground">
 										{new Date(word.firstSeen).toLocaleDateString()}
 									</TableCell>
-									<TableCell class="text-muted-foreground text-sm">
+									<TableCell class="text-sm text-muted-foreground">
 										{new Date(word.lastUsed).toLocaleDateString()}
 									</TableCell>
 									<TableCell>
@@ -333,7 +333,7 @@
 												<div class="space-y-1">
 													{#each word.jishoData.senses as sense, index}
 														<div class="text-sm">
-															<div class="text-muted-foreground font-medium">
+															<div class="font-medium text-muted-foreground">
 																{sense.parts_of_speech.join(', ')}
 															</div>
 															<div class="text-xs">
@@ -341,7 +341,7 @@
 															</div>
 														</div>
 														{#if index < word.jishoData.senses.length - 1}
-															<div class="border-muted my-1 border-t"></div>
+															<div class="my-1 border-t border-muted"></div>
 														{/if}
 													{/each}
 												</div>
@@ -370,3 +370,12 @@
 		</CardContent>
 	</Card>
 </div>
+
+<!-- Floating Journal Button -->
+<a
+	href="/"
+	class="fixed bottom-6 left-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-secondary text-secondary-foreground shadow-lg transition-all duration-200 hover:scale-105 hover:shadow-xl focus:ring-2 focus:ring-secondary focus:ring-offset-2 focus:outline-none"
+	aria-label="Go to journal"
+>
+	<span class="text-lg font-medium">日記</span>
+</a>
