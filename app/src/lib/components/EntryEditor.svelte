@@ -23,6 +23,10 @@
 	let isGeneratingFurigana = $state(false);
 	let lastContent = $state('');
 
+	// Visual viewport tracking for mobile keyboard handling
+	let viewportHeight = $state('100vh');
+	let viewportWidth = $state('100vw');
+
 	// Reactive effect for content changes
 	$effect(() => {
 		if (entry && entry.content !== lastContent) {
@@ -48,6 +52,17 @@
 		if (isOpen && textareaElement) {
 			setTimeout(() => textareaElement?.focus(), 300);
 		}
+
+		// Set up visual viewport tracking for mobile keyboard handling
+		updateViewport();
+
+		if (typeof window !== 'undefined') {
+			if (typeof window.visualViewport === 'undefined') {
+				window.addEventListener('resize', updateViewport);
+			} else if (window.visualViewport) {
+				window.visualViewport.addEventListener('resize', updateViewport);
+			}
+		}
 	});
 
 	onDestroy(() => {
@@ -55,7 +70,41 @@
 		if (entry) {
 			autoSaveService.cancelAutoSave(entry.id);
 		}
+
+		// Clean up visual viewport event listeners
+		if (typeof window !== 'undefined') {
+			if (typeof window.visualViewport === 'undefined') {
+				window.removeEventListener('resize', updateViewport);
+			} else if (window.visualViewport) {
+				window.visualViewport.removeEventListener('resize', updateViewport);
+			}
+		}
 	});
+
+	/**
+	 * Update the viewport height and width values for mobile keyboard handling
+	 */
+	function updateViewport() {
+		if (
+			typeof window !== 'undefined' &&
+			typeof document !== 'undefined' &&
+			typeof document.documentElement !== 'undefined'
+		) {
+			if (typeof window.visualViewport === 'undefined' || !window.visualViewport) {
+				viewportHeight = `${window.innerHeight}px`;
+				viewportWidth = `${window.innerWidth}px`;
+
+				document.documentElement.style.setProperty('--viewport-height', viewportHeight);
+				document.documentElement.style.setProperty('--viewport-width', viewportWidth);
+			} else {
+				viewportHeight = `${window.visualViewport.height}px`;
+				viewportWidth = `${window.visualViewport.width}px`;
+
+				document.documentElement.style.setProperty('--viewport-height', viewportHeight);
+				document.documentElement.style.setProperty('--viewport-width', viewportWidth);
+			}
+		}
+	}
 
 	async function handleContentChange() {
 		if (!entry) return;
@@ -156,20 +205,20 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if isOpen}
-	<!-- Backdrop -->
+	<!-- Backdrop - only on mobile -->
 	<div
-		class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+		class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm md:hidden"
 		onclick={handleBackdropClick}
 		style="animation: fadeIn 0.2s ease-out;"
 	></div>
 
 	<!-- Editor Panel -->
 	<div
-		class="fixed inset-x-0 bottom-0 z-50 border-t bg-background shadow-2xl"
-		style="height: 85vh; animation: slideUp 0.3s ease-out;"
+		class="fixed inset-0 z-50 bg-background shadow-2xl"
+		style="animation: slideUp 0.3s ease-out; height: var(--viewport-height, 100vh);"
 	>
 		<!-- Header -->
-		<div class="flex items-center justify-between border-b p-4">
+		<div class="flex items-center justify-between border-b p-2 md:p-4">
 			<h2 class="text-lg font-semibold">
 				{entry ? (entry.id ? 'Edit Entry' : 'New Entry') : 'Entry Editor'}
 			</h2>
@@ -180,40 +229,30 @@
 		</div>
 
 		{#if entry}
-			<!-- Editor Content -->
-			<div class="flex h-full">
-				<!-- Left Side - Text Editor -->
-				<div class="flex flex-1 flex-col">
-					<div class="flex-1 p-4">
+			<!-- Editor Content Container -->
+			<div class="flex h-[calc(var(--viewport-height,100vh)-120px)] flex-col md:flex-row">
+				<!-- Text Editor -->
+				<div class="flex h-[calc(var(--viewport-height,100vh)*0.4)] flex-1 flex-col md:h-full">
+					<div class="flex-1 p-2 md:p-4">
 						<Textarea
 							bind:this={textareaElement}
 							value={entry.content}
 							oninput={handleInput}
+							autofocus
 							placeholder="Start writing your journal entry in Japanese..."
 							class="h-full resize-none border-0 text-lg leading-relaxed shadow-none focus-visible:ring-0"
 							style="font-family: 'Hiragino Sans', 'Yu Gothic', 'Meiryo', sans-serif;"
 						/>
 					</div>
-
-					<!-- Stats Footer -->
-					<div class="border-t p-4">
-						<div class="flex gap-4 text-sm text-muted-foreground">
-							<span>{getWordCount()} words</span>
-							<span>{getKanjiCount()} kanji</span>
-							<span>{entry.content.length} characters</span>
-							{#if autoSaveService.hasPendingSave(entry.id)}
-								<span class="text-blue-600">Auto-saving...</span>
-							{/if}
-						</div>
-					</div>
 				</div>
 
 				<!-- Separator -->
-				<Separator orientation="vertical" class="h-full" />
+				<Separator orientation="horizontal" class="md:hidden" />
+				<Separator orientation="vertical" class="hidden h-full md:block" />
 
-				<!-- Right Side - Furigana Preview -->
+				<!-- Furigana Preview -->
 				<div class="flex flex-1 flex-col">
-					<div class="flex-1 overflow-y-auto p-4">
+					<div class="flex-1 overflow-y-auto p-2 md:p-4">
 						{#if entry.content.trim()}
 							{#if isGeneratingFurigana}
 								<div class="flex h-full items-center justify-center text-muted-foreground">
@@ -226,14 +265,14 @@
 								</div>
 							{:else if furiganaHtml}
 								<div
-									class="furigana-preview text-lg leading-loose"
+									class="furigana-preview md:vertical-text text-lg leading-loose"
 									style="font-family: 'Hiragino Sans', 'Yu Gothic', 'Meiryo', sans-serif; line-height: 2.5;"
 								>
 									{@html furiganaHtml}
 								</div>
 							{:else}
 								<div
-									class="text-lg leading-loose"
+									class="md:vertical-text text-lg leading-loose"
 									style="font-family: 'Hiragino Sans', 'Yu Gothic', 'Meiryo', sans-serif; line-height: 2.5;"
 								>
 									{entry.content}
@@ -247,6 +286,39 @@
 								</div>
 							</div>
 						{/if}
+					</div>
+				</div>
+			</div>
+
+			<!-- Stats Footer - Inside editor on white background -->
+			<div class="border-t bg-background p-3">
+				<div
+					class="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground"
+				>
+					<div class="flex flex-wrap gap-4">
+						<span>{getWordCount()} words</span>
+						<span>{getKanjiCount()} kanji</span>
+						<span>{entry.content.length} characters</span>
+						{#if autoSaveService.hasPendingSave(entry.id)}
+							<span class="text-blue-600">Auto-saving...</span>
+						{/if}
+					</div>
+					<div class="text-right text-xs">
+						<div>
+							{entry.date.toLocaleDateString('en-US', {
+								weekday: 'short',
+								month: 'short',
+								day: 'numeric',
+								year: 'numeric'
+							})}
+						</div>
+						<div>
+							{entry.updatedAt.toLocaleTimeString('en-US', {
+								hour: 'numeric',
+								minute: '2-digit',
+								hour12: true
+							})}
+						</div>
 					</div>
 				</div>
 			</div>
@@ -270,6 +342,29 @@
 		}
 		to {
 			transform: translateY(0);
+		}
+	}
+
+	/* Vertical text layout for desktop Japanese book style */
+	@media (min-width: 768px) {
+		:global(.vertical-text) {
+			writing-mode: vertical-rl;
+			text-orientation: mixed;
+			height: 100%;
+			overflow-x: auto;
+			overflow-y: hidden;
+			white-space: nowrap;
+			direction: rtl;
+		}
+
+		:global(.vertical-text ruby) {
+			ruby-position: over;
+		}
+
+		:global(.vertical-text rt) {
+			font-size: 0.6em;
+			color: #666;
+			font-weight: normal;
 		}
 	}
 
@@ -301,6 +396,24 @@
 	}
 
 	.overflow-y-auto::-webkit-scrollbar-thumb:hover {
+		background: hsl(var(--muted-foreground) / 0.5);
+	}
+
+	/* Horizontal scrollbar for vertical text */
+	.overflow-x-auto::-webkit-scrollbar {
+		height: 6px;
+	}
+
+	.overflow-x-auto::-webkit-scrollbar-track {
+		background: transparent;
+	}
+
+	.overflow-x-auto::-webkit-scrollbar-thumb {
+		background: hsl(var(--muted-foreground) / 0.3);
+		border-radius: 3px;
+	}
+
+	.overflow-x-auto::-webkit-scrollbar-thumb:hover {
 		background: hsl(var(--muted-foreground) / 0.5);
 	}
 </style>
