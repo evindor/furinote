@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { storageService } from '$lib/services/storage.service.js';
 	import { analysisService } from '$lib/services/analysis.service.js';
+	import { jishoService } from '$lib/services/jisho.service.js';
 	import { ensureInitialized } from '$lib/stores/initialization.js';
 	import type { TrackedWord } from '$lib/types/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -30,6 +31,7 @@
 	let searchTerm = '';
 	let isLoading = false;
 	let isReanalyzing = false;
+	let fetchingDefinitions = new Set<string>(); // Track which words are currently fetching
 	let analysisStats = {
 		totalEntries: 0,
 		analyzedEntries: 0,
@@ -120,6 +122,38 @@
 		const kanjiRegex = /[\u4E00-\u9FAF]/g;
 		const matches = word.match(kanjiRegex);
 		return matches ? [...new Set(matches)] : [];
+	}
+
+	async function fetchDefinition(word: TrackedWord) {
+		if (fetchingDefinitions.has(word.id)) return;
+
+		fetchingDefinitions.add(word.id);
+		fetchingDefinitions = fetchingDefinitions; // Trigger reactivity
+
+		try {
+			const jishoData = await jishoService.fetchDefinition(word.word);
+
+			if (jishoData) {
+				// Update the word in the database
+				await storageService.updateWordWithJishoData(word.id, jishoData);
+
+				// Update the local state
+				const wordIndex = words.findIndex((w) => w.id === word.id);
+				if (wordIndex !== -1) {
+					words[wordIndex] = { ...words[wordIndex], jishoData };
+					words = words; // Trigger reactivity
+					filterWords(); // Update filtered words
+				}
+			} else {
+				alert('No definition found for this word.');
+			}
+		} catch (error) {
+			console.error('Error fetching definition:', error);
+			alert('Error fetching definition. Please try again.');
+		} finally {
+			fetchingDefinitions.delete(word.id);
+			fetchingDefinitions = fetchingDefinitions; // Trigger reactivity
+		}
 	}
 
 	$: {
@@ -247,6 +281,7 @@
 								<TableHead class="w-[150px]">First Seen</TableHead>
 								<TableHead class="w-[150px]">Last Used</TableHead>
 								<TableHead class="w-[100px]">Entries</TableHead>
+								<TableHead class="w-[300px]">Definition</TableHead>
 							</TableRow>
 						</TableHeader>
 						<TableBody>
@@ -282,6 +317,49 @@
 										<Badge variant="outline">
 											{word.entryIds.length}
 										</Badge>
+									</TableCell>
+									<TableCell class="max-w-[300px]">
+										{#if word.jishoData}
+											<div class="space-y-2">
+												{#if word.jishoData.jlpt.length > 0}
+													<div class="flex flex-wrap gap-1">
+														{#each word.jishoData.jlpt as level}
+															<Badge variant="secondary" class="text-xs">
+																{level.toUpperCase()}
+															</Badge>
+														{/each}
+													</div>
+												{/if}
+												<div class="space-y-1">
+													{#each word.jishoData.senses as sense, index}
+														<div class="text-sm">
+															<div class="text-muted-foreground font-medium">
+																{sense.parts_of_speech.join(', ')}
+															</div>
+															<div class="text-xs">
+																{sense.english_definitions.join('; ')}
+															</div>
+														</div>
+														{#if index < word.jishoData.senses.length - 1}
+															<div class="border-muted my-1 border-t"></div>
+														{/if}
+													{/each}
+												</div>
+											</div>
+										{:else}
+											<Button
+												variant="outline"
+												size="sm"
+												onclick={() => fetchDefinition(word)}
+												disabled={fetchingDefinitions.has(word.id)}
+											>
+												{#if fetchingDefinitions.has(word.id)}
+													Fetching...
+												{:else}
+													Fetch Definition
+												{/if}
+											</Button>
+										{/if}
 									</TableCell>
 								</TableRow>
 							{/each}

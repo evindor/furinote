@@ -1,7 +1,7 @@
 import type { JournalEntry, TrackedWord } from '../types/index.js';
 
 const DB_NAME = 'KanjiDesuDB';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const ENTRIES_STORE = 'entries';
 const WORDS_STORE = 'words';
 
@@ -230,6 +230,40 @@ class StorageService {
 
 			request.onerror = () => reject(request.error);
 			request.onsuccess = () => resolve();
+		});
+	}
+
+	async updateWordWithJishoData(
+		wordId: string,
+		jishoData: import('../types/index.js').JishoData
+	): Promise<TrackedWord> {
+		if (!this.db) throw new Error('Database not initialized');
+
+		return new Promise((resolve, reject) => {
+			const transaction = this.db!.transaction([WORDS_STORE], 'readwrite');
+			const store = transaction.objectStore(WORDS_STORE);
+
+			// First get the existing word
+			const getRequest = store.get(wordId);
+
+			getRequest.onerror = () => reject(getRequest.error);
+			getRequest.onsuccess = () => {
+				const existingWord = getRequest.result;
+				if (!existingWord) {
+					reject(new Error('Word not found'));
+					return;
+				}
+
+				// Update the word with Jisho data
+				const updatedWord: TrackedWord = {
+					...existingWord,
+					jishoData
+				};
+
+				const putRequest = store.put(updatedWord);
+				putRequest.onerror = () => reject(putRequest.error);
+				putRequest.onsuccess = () => resolve(updatedWord);
+			};
 		});
 	}
 

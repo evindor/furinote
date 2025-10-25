@@ -11,6 +11,14 @@ export interface JournalEntry {
 	updatedAt: Date;
 }
 
+export interface JishoData {
+	jlpt: string[];
+	senses: {
+		english_definitions: string[];
+		parts_of_speech: string[];
+	}[];
+}
+
 export interface TrackedWord {
 	id: string;
 	word: string;
@@ -19,6 +27,7 @@ export interface TrackedWord {
 	firstSeen: Date;
 	lastUsed: Date;
 	entryIds: string[]; // References to entries containing this word
+	jishoData?: JishoData; // Optional Jisho definition data
 }
 
 export interface MecabToken {
