@@ -30,7 +30,6 @@ class MecabService {
 				throw new Error('MeCab not found on window object. Check if mecab-wasm is loaded.');
 			}
 
-			console.log('Waiting for MeCab to be ready...');
 			await this.mecab.waitReady();
 
 			this.isInitialized = true;
@@ -71,7 +70,6 @@ class MecabService {
 
 		try {
 			const result = this.mecab.query(text);
-			console.log('MeCab analysis result:', result);
 			return result as MecabToken[];
 		} catch (error) {
 			console.error('Error analyzing text with MeCab:', error);

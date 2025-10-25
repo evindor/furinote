@@ -4,10 +4,14 @@
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import { Button } from '$lib/components/ui/button/index.js';
+	import { ensureInitialized } from '$lib/stores/initialization.js';
 
 	let { children } = $props();
 
-	onMount(() => {
+	onMount(async () => {
+		// Initialize storage first - this ensures database is ready for any page
+		await ensureInitialized();
+
 		// Register service worker for PWA functionality
 		if ('serviceWorker' in navigator) {
 			navigator.serviceWorker

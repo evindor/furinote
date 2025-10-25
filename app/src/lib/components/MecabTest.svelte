@@ -29,19 +29,13 @@
 
 		try {
 			// Test MeCab analysis
-			console.log('Testing MeCab analysis...');
 			mecabResult = await mecabService.analyze(inputText);
-			console.log('MeCab result:', mecabResult);
 
 			// Test furigana generation
-			console.log('Testing furigana generation...');
 			furiganaHtml = await furiganaService.generateFuriganaHTML(inputText);
-			console.log('Furigana HTML:', furiganaHtml);
 
 			// Test word statistics
-			console.log('Testing word statistics...');
 			wordStats = await wordExtractorService.getWordStatistics(inputText);
-			console.log('Word statistics:', wordStats);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Analysis failed';
 			console.error('Analysis error:', err);

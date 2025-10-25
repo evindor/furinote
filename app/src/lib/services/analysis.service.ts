@@ -1,5 +1,6 @@
 import { storageService } from './storage.service.js';
 import { wordExtractorService } from './word-extractor.service.js';
+import { furiganaService } from './furigana.service.js';
 import type { JournalEntry } from '../types/index.js';
 
 class AnalysisService {
@@ -21,10 +22,14 @@ class AnalysisService {
 			// Extract and track words from the entry
 			await wordExtractorService.extractAndTrackWords(entryId, entry.content);
 
+			// Generate and save furigana HTML if content contains Japanese
+			if (furiganaService.containsJapanese(entry.content)) {
+				const furiganaHtml = await furiganaService.generateFuriganaHTML(entry.content);
+				await storageService.updateEntryFurigana(entryId, furiganaHtml);
+			}
+
 			// Mark entry as analyzed
 			await storageService.markEntryAsAnalyzed(entryId);
-
-			console.log(`Entry ${entryId} analyzed successfully`);
 		} catch (error) {
 			console.error(`Error analyzing entry ${entryId}:`, error);
 			throw error;
@@ -38,13 +43,9 @@ class AnalysisService {
 		try {
 			const unanalyzedEntries = await storageService.getUnanalyzedEntries();
 
-			console.log(`Found ${unanalyzedEntries.length} unanalyzed entries`);
-
 			for (const entry of unanalyzedEntries) {
 				await this.analyzeEntry(entry.id, false);
 			}
-
-			console.log('All unanalyzed entries processed');
 		} catch (error) {
 			console.error('Error analyzing unanalyzed entries:', error);
 			throw error;
@@ -61,16 +62,12 @@ class AnalysisService {
 
 			const allEntries = await storageService.getAllEntries();
 
-			console.log(`Force reanalyzing ${allEntries.length} entries`);
-
 			for (const entry of allEntries) {
 				// Mark as unanalyzed first
 				await storageService.markEntryAsUnanalyzed(entry.id);
 				// Then analyze
 				await this.analyzeEntry(entry.id, true);
 			}
-
-			console.log('Force reanalysis completed');
 		} catch (error) {
 			console.error('Error during force reanalysis:', error);
 			throw error;
@@ -103,8 +100,6 @@ class AnalysisService {
 			for (const word of allWords) {
 				await storageService.deleteWord(word.id);
 			}
-
-			console.log('All tracked words cleared');
 		} catch (error) {
 			console.error('Error clearing words:', error);
 			throw error;

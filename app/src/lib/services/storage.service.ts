@@ -127,6 +127,16 @@ class StorageService {
 		});
 	}
 
+	async updateEntryFurigana(entryId: string, furiganaHtml: string): Promise<void> {
+		if (!this.db) throw new Error('Database not initialized');
+
+		const entry = await this.getEntry(entryId);
+		if (!entry) throw new Error(`Entry with id ${entryId} not found`);
+
+		const updatedEntry = { ...entry, furiganaHtml, updatedAt: new Date() };
+		await this.updateEntry(updatedEntry);
+	}
+
 	async deleteEntry(id: string): Promise<void> {
 		if (!this.db) throw new Error('Database not initialized');
 

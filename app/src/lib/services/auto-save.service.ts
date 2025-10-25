@@ -21,7 +21,6 @@ class AutoSaveService {
 			try {
 				await this.saveEntry(entry);
 				this.saveTimeouts.delete(entry.id);
-				console.log(`Auto-saved entry: ${entry.id}`);
 			} catch (error) {
 				console.error('Auto-save failed:', error);
 			}

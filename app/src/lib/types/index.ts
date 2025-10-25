@@ -3,6 +3,7 @@ export interface JournalEntry {
 	date: Date;
 	title?: string;
 	content: string;
+	furiganaHtml?: string; // Cached furigana version for efficient display
 	wordCount: number;
 	kanjiCount: number;
 	analyzed: boolean;
@@ -18,21 +19,6 @@ export interface TrackedWord {
 	firstSeen: Date;
 	lastUsed: Date;
 	entryIds: string[]; // References to entries containing this word
-}
-
-export interface FuriganaToken {
-	surface: string;
-	reading: string;
-	pronunciation: string;
-	pos: string;
-	pos_detail_1: string;
-	pos_detail_2: string;
-	pos_detail_3: string;
-	conjugated_type: string;
-	conjugated_form: string;
-	basic_form: string;
-	reading_form: string;
-	pronunciation_form: string;
 }
 
 export interface MecabToken {

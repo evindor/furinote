@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { storageService } from '$lib/services/storage.service.js';
 	import { analysisService } from '$lib/services/analysis.service.js';
+	import { ensureInitialized } from '$lib/stores/initialization.js';
 	import type { TrackedWord } from '$lib/types/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -43,6 +44,9 @@
 	async function loadData() {
 		isLoading = true;
 		try {
+			// Wait for database initialization
+			await ensureInitialized();
+
 			const [wordsData, stats] = await Promise.all([
 				storageService.getAllWords(),
 				analysisService.getAnalysisStats()

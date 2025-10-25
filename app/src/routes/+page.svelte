@@ -5,8 +5,9 @@
 	import TextEditor from '$lib/components/TextEditor.svelte';
 	import DatabaseDebugView from '$lib/components/DatabaseDebugView.svelte';
 	import MecabTest from '$lib/components/MecabTest.svelte';
-	import { storageService, initializeStorage } from '$lib/services/storage.service.js';
+	import { storageService } from '$lib/services/storage.service.js';
 	import { wordExtractorService } from '$lib/services/word-extractor.service.js';
+	import { ensureInitialized } from '$lib/stores/initialization.js';
 	import type { JournalEntry } from '$lib/types/index.js';
 
 	// State
@@ -23,8 +24,8 @@
 
 	async function initializeApp() {
 		try {
-			// Initialize storage
-			await initializeStorage();
+			// Wait for database initialization
+			await ensureInitialized();
 
 			// Load existing entries
 			entries = await storageService.getAllEntries();
@@ -202,7 +203,16 @@
 											{entry.title || formatDate(entry.date)}
 										</div>
 										<div class="text-muted-foreground mt-1 text-xs">
-											{entry.content.substring(0, 50)}{entry.content.length > 50 ? '...' : ''}
+											{#if entry.furiganaHtml}
+												<div class="furigana-preview">
+													{@html entry.furiganaHtml.substring(0, 100)}{entry.furiganaHtml.length >
+													100
+														? '...'
+														: ''}
+												</div>
+											{:else}
+												{entry.content.substring(0, 50)}{entry.content.length > 50 ? '...' : ''}
+											{/if}
 										</div>
 										<div class="text-muted-foreground mt-1 text-xs">
 											{entry.wordCount} words • {entry.kanjiCount} kanji
@@ -213,6 +223,20 @@
 						</CardContent>
 					</Card>
 				</div>
+
+				<style>
+					/* Furigana preview styling */
+					:global(.furigana-preview ruby) {
+						ruby-align: center;
+					}
+
+					:global(.furigana-preview rt) {
+						font-size: 0.5em;
+						line-height: 1;
+						text-align: center;
+						color: #666;
+					}
+				</style>
 
 				<!-- Main Content - Text Editor -->
 				<div class="lg:col-span-3">
@@ -239,7 +263,7 @@
 		<div class="container mx-auto px-4 py-6">
 			<div class="text-muted-foreground text-center text-sm">
 				<p>Learn Japanese through daily journaling with real-time furigana support</p>
-				<p class="mt-1">Built with SvelteKit • Powered by MeCab & Kuroshiro</p>
+				<p class="mt-1">Built with SvelteKit • Powered by MeCab & Wanakana</p>
 			</div>
 		</div>
 	</footer>
