@@ -13,9 +13,10 @@
 		isOpen: boolean;
 		onClose: () => void;
 		onSave?: (entry: JournalEntry) => void;
+		onDelete?: (entry: JournalEntry) => void;
 	}
 
-	let { entry, isOpen, onClose, onSave = () => {} }: Props = $props();
+	let { entry, isOpen, onClose, onSave = () => {}, onDelete = () => {} }: Props = $props();
 
 	// State
 	let textareaElement: any;
@@ -168,6 +169,29 @@
 		}
 	}
 
+	async function handleDelete() {
+		if (!entry) return;
+
+		const confirmed = confirm(
+			'Are you sure you want to delete this entry? This action cannot be undone.'
+		);
+
+		if (confirmed) {
+			try {
+				// Cancel any pending auto-saves if entry has an ID
+				if (entry.id) {
+					autoSaveService.cancelAutoSave(entry.id);
+				}
+
+				// Call the delete callback
+				onDelete(entry);
+				onClose();
+			} catch (error) {
+				console.error('Delete failed:', error);
+			}
+		}
+	}
+
 	function handleInput(event: Event) {
 		if (!entry) return;
 		const target = event.target as HTMLTextAreaElement;
@@ -224,6 +248,9 @@
 			</h2>
 			<div class="flex gap-2">
 				<Button variant="outline" size="sm" onclick={handleSave}>Save</Button>
+				{#if entry}
+					<Button variant="destructive" size="sm" onclick={handleDelete}>Delete</Button>
+				{/if}
 				<Button variant="ghost" size="sm" onclick={onClose}>Close</Button>
 			</div>
 		</div>

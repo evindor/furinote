@@ -2,7 +2,6 @@
 	import { onMount } from 'svelte';
 	import { storageService } from '$lib/services/storage.service.js';
 	import { analysisService } from '$lib/services/analysis.service.js';
-	import { jishoService } from '$lib/services/jisho.service.js';
 	import { ensureInitialized } from '$lib/stores/initialization.js';
 	import type { TrackedWord } from '$lib/types/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -16,15 +15,7 @@
 	} from '$lib/components/ui/card/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Separator } from '$lib/components/ui/separator/index.js';
-	import {
-		Table,
-		TableBody,
-		TableCaption,
-		TableCell,
-		TableHead,
-		TableHeader,
-		TableRow
-	} from '$lib/components/ui/table/index.js';
+	import WordCard from '$lib/components/WordCard.svelte';
 
 	let words: TrackedWord[] = [];
 	let filteredWords: TrackedWord[] = [];
@@ -32,6 +23,7 @@
 	let isLoading = false;
 	let isReanalyzing = false;
 	let fetchingDefinitions = new Set<string>(); // Track which words are currently fetching
+	let showStats = false; // Toggle for mobile stats display
 	let analysisStats = {
 		totalEntries: 0,
 		analyzedEntries: 0,
@@ -99,61 +91,43 @@
 			filteredWords = words;
 		} else {
 			const term = searchTerm.toLowerCase();
-			filteredWords = words.filter(
-				(word) =>
-					word.word.toLowerCase().includes(term) || word.reading.toLowerCase().includes(term)
-			);
+			filteredWords = words.filter((word) => {
+				// Search in word text
+				if (word.word.toLowerCase().includes(term)) return true;
+
+				// Search in reading
+				if (word.reading.toLowerCase().includes(term)) return true;
+
+				// Search in individual kanji
+				const kanjiRegex = /[\u4E00-\u9FAF]/g;
+				const kanji = word.word.match(kanjiRegex);
+				if (kanji && kanji.some((k) => k.includes(term))) return true;
+
+				// Search in definitions if available
+				if (word.jishoData) {
+					// Search in JLPT levels
+					if (word.jishoData.jlpt.some((level) => level.toLowerCase().includes(term))) return true;
+
+					// Search in parts of speech and definitions
+					if (
+						word.jishoData.senses.some(
+							(sense) =>
+								sense.parts_of_speech.some((pos) => pos.toLowerCase().includes(term)) ||
+								sense.english_definitions.some((def) => def.toLowerCase().includes(term))
+						)
+					)
+						return true;
+				}
+
+				return false;
+			});
 		}
-	}
-
-	function sortByFrequency() {
-		filteredWords = [...filteredWords].sort((a, b) => b.frequency - a.frequency);
-	}
-
-	function sortByWord() {
-		filteredWords = [...filteredWords].sort((a, b) => a.word.localeCompare(b.word));
-	}
-
-	function sortByReading() {
-		filteredWords = [...filteredWords].sort((a, b) => a.reading.localeCompare(b.reading));
 	}
 
 	function getKanjiFromWord(word: string): string[] {
 		const kanjiRegex = /[\u4E00-\u9FAF]/g;
 		const matches = word.match(kanjiRegex);
 		return matches ? [...new Set(matches)] : [];
-	}
-
-	async function fetchDefinition(word: TrackedWord) {
-		if (fetchingDefinitions.has(word.id)) return;
-
-		fetchingDefinitions.add(word.id);
-		fetchingDefinitions = fetchingDefinitions; // Trigger reactivity
-
-		try {
-			const jishoData = await jishoService.fetchDefinition(word.word);
-
-			if (jishoData) {
-				// Update the word in the database
-				await storageService.updateWordWithJishoData(word.id, jishoData);
-
-				// Update the local state
-				const wordIndex = words.findIndex((w) => w.id === word.id);
-				if (wordIndex !== -1) {
-					words[wordIndex] = { ...words[wordIndex], jishoData };
-					words = words; // Trigger reactivity
-					filterWords(); // Update filtered words
-				}
-			} else {
-				alert('No definition found for this word.');
-			}
-		} catch (error) {
-			console.error('Error fetching definition:', error);
-			alert('Error fetching definition. Please try again.');
-		} finally {
-			fetchingDefinitions.delete(word.id);
-			fetchingDefinitions = fetchingDefinitions; // Trigger reactivity
-		}
 	}
 
 	$: {
@@ -172,203 +146,103 @@
 			<p class="text-muted-foreground">Track your Japanese vocabulary usage and frequency</p>
 		</div>
 		<div class="flex gap-2">
-			<Button
-				variant="outline"
-				onclick={analyzeUnanalyzed}
-				disabled={isReanalyzing || analysisStats.unanalyzedEntries === 0}
-			>
-				{#if isReanalyzing}
-					Analyzing...
-				{:else}
-					Analyze Unanalyzed ({analysisStats.unanalyzedEntries})
-				{/if}
-			</Button>
-			<Button variant="destructive" onclick={forceReanalyze} disabled={isReanalyzing}>
-				{#if isReanalyzing}
-					Rebuilding...
-				{:else}
-					Force Rebuild All Data
-				{/if}
-			</Button>
+			<Button variant="outline" size="sm" onclick={() => (showStats = !showStats)}>Stats</Button>
 		</div>
 	</div>
 
-	<!-- Statistics Cards -->
-	<div class="grid grid-cols-1 gap-4 md:grid-cols-4">
+	<!-- Statistics (Hidden by default, toggleable) -->
+	{#if showStats}
 		<Card>
-			<CardHeader class="pb-2">
-				<CardTitle class="text-sm font-medium">Total Entries</CardTitle>
-			</CardHeader>
-			<CardContent>
-				<div class="text-2xl font-bold">{analysisStats.totalEntries}</div>
+			<CardContent class="p-4">
+				<div class="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
+					<div class="text-center">
+						<div class="text-lg font-bold md:text-2xl">{analysisStats.totalEntries}</div>
+						<div class="text-muted-foreground">Total Entries</div>
+					</div>
+					<div class="text-center">
+						<div class="text-lg font-bold text-green-600 md:text-2xl">
+							{analysisStats.analyzedEntries}
+						</div>
+						<div class="text-muted-foreground">Analyzed</div>
+					</div>
+					<div class="text-center">
+						<div class="text-lg font-bold text-orange-600 md:text-2xl">
+							{analysisStats.unanalyzedEntries}
+						</div>
+						<div class="text-muted-foreground">Unanalyzed</div>
+					</div>
+					<div class="text-center">
+						<div class="text-lg font-bold text-blue-600 md:text-2xl">
+							{analysisStats.totalWords}
+						</div>
+						<div class="text-muted-foreground">Words</div>
+					</div>
+				</div>
+				<div class="mt-4 flex gap-2">
+					<Button
+						variant="outline"
+						size="sm"
+						onclick={analyzeUnanalyzed}
+						disabled={isReanalyzing || analysisStats.unanalyzedEntries === 0}
+						class="flex-1"
+					>
+						{#if isReanalyzing}
+							Analyzing...
+						{:else}
+							Analyze ({analysisStats.unanalyzedEntries})
+						{/if}
+					</Button>
+					<Button
+						variant="destructive"
+						size="sm"
+						onclick={forceReanalyze}
+						disabled={isReanalyzing}
+						class="flex-1"
+					>
+						{#if isReanalyzing}
+							Rebuilding...
+						{:else}
+							Rebuild
+						{/if}
+					</Button>
+				</div>
 			</CardContent>
 		</Card>
-		<Card>
-			<CardHeader class="pb-2">
-				<CardTitle class="text-sm font-medium">Analyzed Entries</CardTitle>
-			</CardHeader>
-			<CardContent>
-				<div class="text-2xl font-bold text-green-600">{analysisStats.analyzedEntries}</div>
-			</CardContent>
-		</Card>
-		<Card>
-			<CardHeader class="pb-2">
-				<CardTitle class="text-sm font-medium">Unanalyzed Entries</CardTitle>
-			</CardHeader>
-			<CardContent>
-				<div class="text-2xl font-bold text-orange-600">{analysisStats.unanalyzedEntries}</div>
-			</CardContent>
-		</Card>
-		<Card>
-			<CardHeader class="pb-2">
-				<CardTitle class="text-sm font-medium">Unique Words</CardTitle>
-			</CardHeader>
-			<CardContent>
-				<div class="text-2xl font-bold text-blue-600">{analysisStats.totalWords}</div>
-			</CardContent>
-		</Card>
+	{/if}
+
+	<!-- Search Bar -->
+	<div class="mx-auto mb-6 w-full max-w-md">
+		<Input
+			type="text"
+			placeholder="Search words, readings, kanji, or definitions..."
+			bind:value={searchTerm}
+			class="w-full"
+		/>
 	</div>
 
-	<!-- Search and Controls -->
-	<Card>
-		<CardHeader>
-			<CardTitle>Word List</CardTitle>
-			<CardDescription>Search and sort your tracked Japanese words</CardDescription>
-		</CardHeader>
-		<CardContent class="space-y-4">
-			<div class="flex flex-col gap-4 sm:flex-row">
-				<div class="flex-1">
-					<Input
-						type="text"
-						placeholder="Search words or readings..."
-						bind:value={searchTerm}
-						class="w-full"
-					/>
-				</div>
-				<div class="flex gap-2">
-					<Button variant="outline" size="sm" onclick={sortByFrequency}>Sort by Frequency</Button>
-					<Button variant="outline" size="sm" onclick={sortByWord}>Sort by Word</Button>
-					<Button variant="outline" size="sm" onclick={sortByReading}>Sort by Reading</Button>
-				</div>
-			</div>
-
-			<Separator />
-
-			{#if isLoading}
-				<div class="py-8 text-center">
-					<p class="text-muted-foreground">Loading words...</p>
-				</div>
-			{:else if filteredWords.length === 0}
-				<div class="py-8 text-center">
-					<p class="text-muted-foreground">
-						{searchTerm
-							? 'No words found matching your search.'
-							: 'No words tracked yet. Start writing journal entries!'}
-					</p>
-				</div>
-			{:else}
-				<div class="rounded-md border">
-					<Table>
-						<TableCaption>
-							Showing {filteredWords.length} of {words.length} words
-						</TableCaption>
-						<TableHeader>
-							<TableRow>
-								<TableHead class="w-[200px]">Word</TableHead>
-								<TableHead class="w-[200px]">Reading</TableHead>
-								<TableHead class="w-[150px]">Kanji</TableHead>
-								<TableHead class="w-[100px]">Frequency</TableHead>
-								<TableHead class="w-[150px]">First Seen</TableHead>
-								<TableHead class="w-[150px]">Last Used</TableHead>
-								<TableHead class="w-[100px]">Entries</TableHead>
-								<TableHead class="w-[300px]">Definition</TableHead>
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{#each filteredWords as word (word.id)}
-								<TableRow>
-									<TableCell class="text-lg font-medium">
-										{word.word}
-									</TableCell>
-									<TableCell class="text-muted-foreground">
-										{word.reading}
-									</TableCell>
-									<TableCell>
-										<div class="flex flex-wrap gap-1">
-											{#each getKanjiFromWord(word.word) as kanji}
-												<Badge variant="secondary" class="text-xs">
-													{kanji}
-												</Badge>
-											{/each}
-										</div>
-									</TableCell>
-									<TableCell>
-										<Badge variant="outline">
-											{word.frequency}
-										</Badge>
-									</TableCell>
-									<TableCell class="text-sm text-muted-foreground">
-										{new Date(word.firstSeen).toLocaleDateString()}
-									</TableCell>
-									<TableCell class="text-sm text-muted-foreground">
-										{new Date(word.lastUsed).toLocaleDateString()}
-									</TableCell>
-									<TableCell>
-										<Badge variant="outline">
-											{word.entryIds.length}
-										</Badge>
-									</TableCell>
-									<TableCell class="max-w-[300px]">
-										{#if word.jishoData}
-											<div class="space-y-2">
-												{#if word.jishoData.jlpt.length > 0}
-													<div class="flex flex-wrap gap-1">
-														{#each word.jishoData.jlpt as level}
-															<Badge variant="secondary" class="text-xs">
-																{level.toUpperCase()}
-															</Badge>
-														{/each}
-													</div>
-												{/if}
-												<div class="space-y-1">
-													{#each word.jishoData.senses as sense, index}
-														<div class="text-sm">
-															<div class="font-medium text-muted-foreground">
-																{sense.parts_of_speech.join(', ')}
-															</div>
-															<div class="text-xs">
-																{sense.english_definitions.join('; ')}
-															</div>
-														</div>
-														{#if index < word.jishoData.senses.length - 1}
-															<div class="my-1 border-t border-muted"></div>
-														{/if}
-													{/each}
-												</div>
-											</div>
-										{:else}
-											<Button
-												variant="outline"
-												size="sm"
-												onclick={() => fetchDefinition(word)}
-												disabled={fetchingDefinitions.has(word.id)}
-											>
-												{#if fetchingDefinitions.has(word.id)}
-													Fetching...
-												{:else}
-													Fetch Definition
-												{/if}
-											</Button>
-										{/if}
-									</TableCell>
-								</TableRow>
-							{/each}
-						</TableBody>
-					</Table>
-				</div>
-			{/if}
-		</CardContent>
-	</Card>
+	<!-- Word Cards -->
+	{#if isLoading}
+		<div class="py-8 text-center">
+			<p class="text-muted-foreground">Loading words...</p>
+		</div>
+	{:else if filteredWords.length === 0}
+		<div class="py-8 text-center">
+			<p class="text-muted-foreground">
+				{searchTerm
+					? 'No words found matching your search.'
+					: 'No words tracked yet. Start writing journal entries!'}
+			</p>
+		</div>
+	{:else}
+		<div class="mb-6 text-center text-sm text-muted-foreground">
+			Showing {filteredWords.length} of {words.length} words
+		</div>
+		<div class="space-y-6">
+			{#each filteredWords as word (word.id)}
+				<WordCard {word} bind:fetchingDefinitions />
+			{/each}
+		</div>
+	{/if}
 </div>
 
 <!-- Floating Journal Button -->

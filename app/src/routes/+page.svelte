@@ -83,6 +83,23 @@
 		}
 	}
 
+	async function handleEntryDelete(entryToDelete: JournalEntry) {
+		if (!entryToDelete.id) {
+			// For new entries without ID, just close the editor
+			return;
+		}
+
+		try {
+			// Delete from storage
+			await storageService.deleteEntry(entryToDelete.id);
+
+			// Remove from local state
+			entries = entries.filter((entry) => entry.id !== entryToDelete.id);
+		} catch (err) {
+			console.error('Error deleting entry:', err);
+		}
+	}
+
 	async function selectEntry(entry: JournalEntry) {
 		currentEntry = entry;
 		showEditor = true;
@@ -295,6 +312,7 @@
 		isOpen={showEditor}
 		onClose={closeEditor}
 		onSave={handleEntrySave}
+		onDelete={handleEntryDelete}
 	/>
 </div>
 
