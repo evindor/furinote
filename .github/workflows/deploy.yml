@@ -37,10 +37,9 @@ jobs:
 
       - name: Upload Artifacts
         uses: actions/upload-pages-artifact@v3
-        working-directory: 'app/'
         with:
  # this should match the `pages` option in your adapter-static options
-          path: 'build/'
+          path: 'app/build/'
 
   deploy:
     needs: build_site
