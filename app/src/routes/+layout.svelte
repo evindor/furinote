@@ -24,6 +24,7 @@
 				});
 		}
 	});
+	export const prerender = true;
 </script>
 
 <svelte:head>
