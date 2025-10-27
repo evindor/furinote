@@ -1,0 +1,1 @@
+app/static/jmdict-eng-3.6.1.json filter=lfs diff=lfs merge=lfs -text
